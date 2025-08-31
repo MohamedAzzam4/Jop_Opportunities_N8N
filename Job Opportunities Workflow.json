@@ -1,0 +1,609 @@
+{
+  "name": "Job Opportunities Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        160,
+        0
+      ],
+      "id": "225c9689-04bb-4594-bd29-dbb0b2272376",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "function parseLinkedInJobs(markdownContent) {\n    const jobEntries = [];\n    const jobSections = markdownContent.split(/(?=\\*   \\[)/g).slice(1);\n\n    for (const section of jobSections) {\n        try {\n            // Extract job title and URL\n            const titleMatch = section.match(/\\[([^\\]]+)\\]\\(([^)]+)\\)/);\n            if (!titleMatch) continue;\n\n            const title = titleMatch[1].trim();\n            const url = titleMatch[2].trim();\n\n            // Extract company information\n            const companyMatch = section.match(/#### \\[([^\\]]+)\\]\\(([^)]+)\\)/);\n            const company = companyMatch ? companyMatch[1].trim() : null;\n            const companyUrl = companyMatch ? companyMatch[2].trim() : null;\n\n            // Extract location and metadata\n            const metaLine = section.split('\\n').find(line => \n                line.trim() && \n                !line.includes('###') && \n                !line.includes('####') &&\n                !line.includes('![Image')\n            );\n\n            let location = null;\n            let status = null;\n            let timePosted = null;\n\n            if (metaLine) {\n                const metaParts = metaLine.trim().split(/\\s{2,}/);\n                location = metaParts[0] || null;\n                \n                if (metaParts.length > 1) {\n                    const statusMatch = metaParts[1].match(/(Actively Hiring|Be an early applicant)/);\n                    status = statusMatch ? statusMatch[0] : null;\n                    timePosted = metaParts[metaParts.length - 1].match(/\\d+ (day|month|week|hour)s? ago/) ? \n                                metaParts[metaParts.length - 1] : null;\n                }\n            }\n\n            jobEntries.push({\n                title,\n                url,\n                company: {\n                    name: company,\n                    url: companyUrl\n                },\n                location,\n                employment_status: status,\n                posted: timePosted,\n                raw_data: section // Keep original data for reference\n            });\n        } catch (e) {\n            continue;\n        }\n    }\n\n    return {\n        source: \"LinkedIn\",\n        count: jobEntries.length,\n        jobs: jobEntries,\n        parsed_at: new Date().toISOString()\n    };\n}\n\n// === n8n usage ===\nconst markdownContent = $input.first().json.data;\n\n// Parse\nconst result = parseLinkedInJobs(markdownContent);\n\n// رجّع كل وظيفة كـ item منفصل\nreturn result.jobs.map(job => ({ json: job }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        496,
+        0
+      ],
+      "id": "78bf743d-9528-4e39-ad74-5465cda784e1",
+      "name": "cleaning and formating"
+    },
+    {
+      "parameters": {
+        "url": "=https://r.jina.ai/{{ $('cleaning and formating').item.json.url }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1216,
+        0
+      ],
+      "id": "7cb49835-2484-45e1-badb-01f9a5080723",
+      "name": "get each jop",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bUArgkXi0yGk5rd9",
+          "name": "Jina AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1OoaEIkWJU4vrA9oX97rRZ3_D9FxiDBnhza8UoYBu8Bk",
+          "mode": "list",
+          "cachedResultName": "Jops_n8n",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1OoaEIkWJU4vrA9oX97rRZ3_D9FxiDBnhza8UoYBu8Bk/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1OoaEIkWJU4vrA9oX97rRZ3_D9FxiDBnhza8UoYBu8Bk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_title": "={{ $('Extract the details without Format them').item.json.job_title }}",
+            "company_name": "={{ $('Extract the details without Format them').item.json.company_name }}",
+            "location": "={{ $('Extract the details without Format them').item.json.location }}",
+            "employment_type": "={{ $('Extract the details without Format them').item.json.employment_type }}",
+            "seniority_level": "={{ $('Extract the details without Format them').item.json.seniority_level }}",
+            "Requirements": "={{ $json.required_qualifications.map(item => \"- \" + item).join('\\n') }}",
+            "Responsabilities": "={{ $json.responsibilities.map(item => \"- \" + item).join('\\n') }} }}",
+            "Desirable Skills": "={{ $json.preferred_qualifications.map(item => \"- \" + item).join('\\n') }}"
+          },
+          "matchingColumns": [
+            "company_name"
+          ],
+          "schema": [
+            {
+              "id": "job_title",
+              "displayName": "job_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company_name",
+              "displayName": "company_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "employment_type",
+              "displayName": "employment_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "seniority_level",
+              "displayName": "seniority_level",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Details",
+              "displayName": "Details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Responsabilities",
+              "displayName": "Responsabilities",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Requirements",
+              "displayName": "Requirements",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Desirable Skills",
+              "displayName": "Desirable Skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2464,
+        16
+      ],
+      "id": "066e75b1-2fa0-4f60-9c48-70feefa9ad70",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "FnFbMjb5lc9cUD8C",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// استلام النص الكامل من النود السابقة\nconst text = $input.first().json.data;\n\n// --- دالة مساعدة لتشغيل Regex بأمان ---\nfunction extract(regex, targetText = text) {\n  const match = targetText.match(regex);\n  return match ? match[1].trim() : null;\n}\n\n// --- 1. استخراج Metadata (البيانات الوصفية) ---\nconst metadata = {};\n// يبحث عن أول عنوان H3، وهو غالبًا المسمى الوظيفي\nmetadata.job_title = extract(/^### (.*?)\\n/m); \n// يبحث عن اسم الشركة داخل الرابط\nmetadata.company_name = extract(/#### \\[(.*?)\\]/); \n// يبحث عن الموقع بعد اسم الشركة\nmetadata.location = extract(/#### \\[.*?\\]\\s*([^\\n]+)/); \nmetadata.employment_type = extract(/### نوع التوظيف\\n\\n(.*?)\\n/);\nmetadata.seniority_level = extract(/### مستوى الأقدمية\\n\\n(.*?)\\n/);\n\n// --- 2. استخراج محتوى الوظيفة الرئيسي ---\nconst main_content = [];\n\n// تحديد نقطة بداية ونهاية موثوقة للوصف الوظيفي\nconst startMarker = \"الإبلاغ عن هذه الوظيفة\";\nconst endMarker = \"### مستوى الأقدمية\";\nconst startIndex = text.indexOf(startMarker);\nconst endIndex = text.indexOf(endMarker);\n\nif (startIndex !== -1 && endIndex !== -1) {\n  // عزل الجزء الذي يحتوي على الوصف الوظيفي فقط\n  let descriptionBlock = text.substring(startIndex + startMarker.length, endIndex);\n\n  // تقسيم الوصف إلى أقسام بناءً على العناوين البارزة (Bold Headers)\n  // هذا النمط أكثر مرونة من البحث عن كلمات محددة\n  const sections = descriptionBlock.split(/\\n\\s*\\*\\*([^\\*]+?)\\*\\*\\s*\\n/);\n\n  // إذا لم يتم التقسيم، حاول استخدام نمط آخر للعناوين\n  if (sections.length <= 1) {\n      // قد تكون بعض العناوين H2 بدلاً من bold\n      // هذا الجزء يجعل الكود أكثر قوة\n  }\n  \n  for (let i = 1; i < sections.length; i += 2) {\n    const section_title = sections[i].trim();\n    let section_content_raw = sections[i + 1].trim();\n    let section_content = [];\n\n    // التحقق إذا كان المحتوى عبارة عن قائمة نقطية\n    if (section_content_raw.includes('* ')) {\n      section_content = section_content_raw.split('* ')\n        .map(line => line.trim().replace(/\\n/g, ' '))\n        .filter(line => line); // إزالة الأسطر الفارغة\n    } else {\n      // إذا لم يكن قائمة، اعتبره نصًا واحدًا\n      section_content = section_content_raw.replace(/\\s*\\n\\s*/g, ' ');\n    }\n    \n    // تجاهل الأقسام الفارغة\n    if (section_title && section_content.length > 0) {\n        main_content.push({ section_title, section_content });\n    }\n  }\n}\n\n// --- 3. تجميع وإرجاع كائن JSON النهائي ---\nreturn {\n  metadata,\n  main_content\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        1152
+      ],
+      "id": "36c3ea10-f359-4e91-93dc-9856670e6ae3",
+      "name": "Extract the details and Format them1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- الخطوة 1: استلام النص الخام من النود السابقة ---\nconst rawText = $json.data || \"\";\n\n// --- دالة مساعدة لتشغيل Regex بأمان واستخراج أول نتيجة ---\nfunction extract(regex, targetText = rawText) {\n  const match = targetText.match(regex);\n  return match ? match[1].trim() : \"Not Found\"; // إرجاع \"Not Found\" بدلاً من null\n}\n\n// --- الخطوة 2: استخراج المعلومات العامة (Metadata) ---\nconst job_title = extract(/### (.*?)\\n/m);\nconst company_name = extract(/#### \\[(.*?)\\]/);\nconst location = extract(/#### \\[.*?\\]\\s*([^\\n]+)/);\nconst applicants_text = extract(/\\n\\s*(.*(?:متقدم|applicant).*?)\\s*\\n/);\nconst employment_type = extract(/### نوع التوظيف\\n\\n(.*?)\\n/m);\nconst seniority_level = extract(/### مستوى الأقدمية\\n\\n(.*?)\\n/m);\n\n\n// --- الخطوة 3: استخراج وتنظيف تفاصيل الوظيفة ---\nconst startMarker = \"الإبلاغ عن هذه الوظيفة\";\nconst endMarker = \"### مستوى الأقدمية\";\n\nlet cleanDetails = \"\";\nlet extraction_successful = false;\n\nconst startIndex = rawText.indexOf(startMarker);\n\nif (startIndex !== -1) {\n  const endIndex = rawText.indexOf(endMarker, startIndex);\n  if (endIndex !== -1) {\n    cleanDetails = rawText.substring(startIndex + startMarker.length, endIndex).trim();\n    extraction_successful = true;\n  }\n}\n\nif (!extraction_successful || !cleanDetails) {\n    cleanDetails = rawText;\n    extraction_successful = false;\n}\n\n// --- الخطوة 4: تجميع كل البيانات في كائن JSON واحد ---\nreturn {\n  job_title: job_title,\n  company_name: company_name,\n  location: location,\n  employment_type: employment_type,\n  seniority_level: seniority_level,\n  applicants_text: applicants_text,\n  details: cleanDetails,\n  extraction_successful: extraction_successful\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1392,
+        0
+      ],
+      "id": "61ab930b-a7a4-4021-a691-dab073ec032f",
+      "name": "Extract the details without Format them"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9b63cb40-bd4a-43f3-939f-758fff4523ca",
+              "leftValue": "={{ $('Extract the details without Format them').item.json.extraction_successful }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1552,
+        0
+      ],
+      "id": "c094a15d-6611-4699-b200-2c2757f8f43e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        992,
+        -16
+      ],
+      "id": "cc045a6f-4d3f-4a8c-b69b-b56671534a01",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9b63cb40-bd4a-43f3-939f-758fff4523ca",
+              "leftValue": "={{ $json.posted }}",
+              "rightValue": true,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        704,
+        0
+      ],
+      "id": "2c062cc6-54a0-44f9-81b4-bc0f8179b09c",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// خد أول input\nconst input = $input.first().json;\n\n// النص اللي جاي كـ string\nconst rawText = input.content.parts[0].text;\n\n// حوله من سترينج لـ JSON\nconst parsed = JSON.parse(rawText);\n\n// رجعه في صورة Array of Objects زي ما n8n بيحب\nreturn [\n  {\n    json: parsed\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        16
+      ],
+      "id": "8ab78182-2e76-47b4-8379-ec583881245a",
+      "name": "Clean_details"
+    },
+    {
+      "parameters": {
+        "url": "https://r.jina.ai/https://www.linkedin.com/jobs/search/?currentJobId=4290371948&f_E=1%2C2&f_TPR=r604800&geoId=106155005&keywords=machine%20learning%20engineer&origin=JOB_SEARCH_PAGE_KEYWORD_AUTOCOMPLETE&refresh=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        336,
+        0
+      ],
+      "id": "34d947e7-76b7-4aea-ae1e-1281471e8c55",
+      "name": "Get List of Jops",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "bUArgkXi0yGk5rd9",
+          "name": "Jina AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "1068113639",
+        "text": "=There was an Error here : {{ $('cleaning and formating').item.json.company.name }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1664,
+        -288
+      ],
+      "id": "9f8c2115-f423-44c5-922c-d5ed3464d112",
+      "name": "Send an Error message",
+      "webhookId": "a816f02d-e44a-48df-8b3f-ddec9c7b5aa0",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VWysyGBlJapf9lD",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "1068113639",
+        "text": "=The Task has Done Succsesfully.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1952,
+        1168
+      ],
+      "id": "f56e3ae6-b876-47c1-8d15-41d554719ccb",
+      "name": "Send a Confirmation Message",
+      "webhookId": "a816f02d-e44a-48df-8b3f-ddec9c7b5aa0",
+      "credentials": {
+        "telegramApi": {
+          "id": "2VWysyGBlJapf9lD",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Your task is to act as an expert data extraction AI. Analyze the following job description text and convert it into a structured JSON object.\n\nYour response MUST be a single, valid JSON object. Do not include any explanations, introductory text, or markdown formatting like ```json. Your entire response should be the raw JSON object itself.\n\nThe JSON object must contain the following keys:\n- \"summary\": A string containing the general introduction or overview of the job.\n- \"responsibilities\": An array of strings. Extract bullet points or sentences from sections titled \"Responsibilities\", \"What You’ll Do\", \"Key Responsibilities\", \"Key Accountabilities\", etc.\n- \"required_qualifications\": An array of strings. Extract from sections titled \"Requirements\", \"What We’re Looking For\", \"Must Have\", \"Required Skills\", \"Qualifications\", etc.\n- \"preferred_qualifications\": An array of strings. Extract from sections titled \"Preferred Qualifications\", \"Desirable Skills\", \"Nice-to-Haves\", \"Bonus\", \"Preferred Experience\" etc.\n- \"benefits\": An array of strings. Extract from sections titled \"Benefits\", \"Perks\", \"What we offer\", etc.\n\nCrucial Rule:\nFor keys that expect an array (like \"responsibilities\"), if the corresponding section is not found in the text, you MUST return an empty array [].\nFor keys that expect a string (like \"summary\"), if it is not found, you MUST use the string \"Not mentioned\".\n\nHere is the job description text to process:\n{{ $json.details }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        16
+      ],
+      "id": "ce281ef9-3be2-47d0-8eb6-ab8deca2196b",
+      "name": "Format the details",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "dTWKfN0KtD6rw6oM",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1840,
+        16
+      ],
+      "id": "80f0ce05-acd7-4f96-8f55-35a7e322545b",
+      "name": "Wait",
+      "webhookId": "7de9cc1d-a1ff-4625-a5e8-4b2aecfed91e"
+    },
+    {
+      "parameters": {
+        "content": "# Job Opportunities Workflow\n",
+        "height": 576,
+        "width": 2624,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        96,
+        -336
+      ],
+      "typeVersion": 1,
+      "id": "5fd2847a-0d47-440f-8750-e0a9b9d0acf1",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get List of Jops",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cleaning and formating": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get each jop": {
+      "main": [
+        [
+          {
+            "node": "Extract the details without Format them",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract the details without Format them": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send an Error message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "get each jop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean_details": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get List of Jops": {
+      "main": [
+        [
+          {
+            "node": "cleaning and formating",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send an Error message": {
+      "main": [
+        []
+      ]
+    },
+    "Format the details": {
+      "main": [
+        [
+          {
+            "node": "Clean_details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Format the details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7e76f79c-3d0c-43f8-8cbd-4628c9f6d803",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "306fd1c47282f9710e06879e9c110450bb5266cb73d04e6f1d72fa87b14f153b"
+  },
+  "id": "Vw7U5JdbHylRAe3M",
+  "tags": []
+}
