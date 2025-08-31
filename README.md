@@ -2,6 +2,8 @@
 
 This repository contains an n8n workflow designed to automate the process of scraping job opportunities from LinkedIn, intelligently cleaning and structuring the data, and storing it in Google Sheets.
 
+![Project Thumbnail](workflow-thumbnail.png)
+
 ## Project Goal & Design Philosophy
 
 The primary objective was to build a robust pipeline to automate the following steps:
